@@ -27,7 +27,7 @@ SELECT DISTINCT
     CAST(txn_date AS TIMESTAMP) AS txn_date,
     status,
     provider
-FROM transactions
+FROM stg.transactions
 WHERE status IN ('SUCCESS', 'FAILED', 'REFUNDED')
   AND amount > 0
   AND currency IS NOT NULL;
@@ -39,5 +39,5 @@ SELECT DISTINCT
     txn_id,
     CAST(cb_date AS TIMESTAMP) AS cb_date,
     TRIM(reason) AS reason
-FROM chargebacks
+FROM stg.chargebacks
 WHERE cb_id IS NOT NULL AND txn_id IS NOT NULL;
