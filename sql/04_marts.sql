@@ -1,32 +1,69 @@
 -- marts_provider_metrics
 DROP TABLE IF EXISTS marts.marts_provider_metrics;
 CREATE TABLE marts.marts_provider_metrics AS
-WITH duplicates AS (
+WITH suspicious_duplicates AS (
+    SELECT DISTINCT 
+        t1.txn_id,
+        t1.provider
+    FROM fact.fact_transactions t1
+    JOIN fact.fact_transactions t2 ON t1.user_id = t2.user_id
+        							AND t1.amount = t2.amount
+        							AND t1.currency = t2.currency
+        							AND t1.txn_id < t2.txn_id
+        							AND t2.txn_date BETWEEN t1.txn_date AND t1.txn_date + INTERVAL '5 minute'
+    WHERE t1.status = 'SUCCESS' AND t2.status = 'SUCCESS'
+),
+provider_success AS (
     SELECT
-        user_id,
-        amount,
         provider,
-        DATE_TRUNC('second', txn_date) AS txn_time,
-        COUNT(*) AS txn_count
+        COUNT(DISTINCT txn_id) AS total_success_txns
     FROM fact.fact_transactions
-    GROUP BY 1,2,3,4
-    HAVING COUNT(*) > 1
+    WHERE status = 'SUCCESS'
+    GROUP BY provider
+),
+provider_suspicious_duplicates AS (
+    SELECT
+        s.provider,
+        COUNT(DISTINCT s.txn_id) AS duplicate_txns
+    FROM suspicious_duplicates s
+    GROUP BY s.provider
+),
+merged_suspicious AS (
+    SELECT
+        ps.provider,
+        ps.total_success_txns,
+        COALESCE(psu.duplicate_txns, 0) AS duplicate_txns,
+        ROUND(
+            COALESCE(psu.duplicate_txns, 0)::numeric * 100.0 
+            / NULLIF(ps.total_success_txns, 0),
+            4
+        ) AS duplicate_share
+    FROM provider_success ps
+    LEFT JOIN provider_suspicious_duplicates psu ON ps.provider = psu.provider
+),
+provider_chargebacks AS (
+    SELECT
+        f.provider,
+        COUNT(DISTINCT c.cb_id) AS chargebacks,
+        COUNT(DISTINCT f.txn_id) FILTER (WHERE f.status = 'SUCCESS') AS total_success_txns_for_cb,
+        ROUND(
+            COUNT(DISTINCT c.cb_id)::numeric * 100.0
+            / NULLIF(COUNT(DISTINCT f.txn_id) FILTER (WHERE f.status = 'SUCCESS'), 0),
+            4
+        ) AS chargeback_rate
+    FROM fact.fact_transactions f
+    LEFT JOIN fact.fact_chargebacks c ON f.txn_id = c.txn_id
+    GROUP BY f.provider
 )
 SELECT
-    f.provider,
-    COUNT(DISTINCT f.txn_id) AS total_txns,
-    COALESCE(SUM(CASE 
-					WHEN d.txn_count > 1 THEN 1 ELSE 0 
-				END), 0) AS duplicate_txns,  
-    ROUND(SUM(CASE 
-				WHEN d.txn_count > 1 THEN 1 ELSE 0 
-			END)::numeric / COUNT(DISTINCT f.txn_id), 4) AS duplicate_share, 
-    COUNT(DISTINCT c.cb_id) AS chargebacks,
-    ROUND(COUNT(DISTINCT c.cb_id)::numeric / COUNT(DISTINCT f.txn_id), 4) AS chargeback_rate
-FROM fact.fact_transactions f
-LEFT JOIN duplicates d USING (user_id, amount, provider)
-LEFT JOIN fact.fact_chargebacks c USING (txn_id)
-GROUP BY f.provider
+    ms.provider,
+    ms.total_success_txns,
+    ms.duplicate_txns,
+    ms.duplicate_share,
+    COALESCE(c.chargebacks, 0) AS chargebacks,
+    COALESCE(c.chargeback_rate, 0) AS chargeback_rate
+FROM merged_suspicious ms
+LEFT JOIN provider_chargebacks c ON ms.provider = c.provider
 ORDER BY chargeback_rate DESC;
 
 -- marts_user_activity
