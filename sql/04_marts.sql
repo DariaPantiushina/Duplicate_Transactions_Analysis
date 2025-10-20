@@ -79,3 +79,85 @@ FROM fact.fact_transactions f
 LEFT JOIN fact.fact_chargebacks c USING (txn_id)
 GROUP BY f.user_id
 ORDER BY total_amount DESC;
+
+-- marts_transactions_trend
+DROP TABLE IF EXISTS marts.marts_transactions_trend;
+CREATE TABLE marts.marts_transactions_trend AS
+WITH suspicious_duplicates AS (
+    SELECT DISTINCT 
+        t1.txn_id,
+        t1.provider,
+        DATE(t1.txn_date) AS txn_day
+    FROM fact.fact_transactions t1
+    JOIN fact.fact_transactions t2 ON t1.user_id = t2.user_id
+        							AND t1.amount = t2.amount
+        							AND t1.currency = t2.currency
+        							AND t1.txn_id < t2.txn_id
+        							AND t2.txn_date BETWEEN t1.txn_date AND t1.txn_date + INTERVAL '5 minute'
+    WHERE t1.status = 'SUCCESS' AND t2.status = 'SUCCESS'
+),
+provider_daily_success AS (
+    SELECT
+        provider,
+        DATE(txn_date) AS txn_day,
+        COUNT(DISTINCT txn_id) AS total_success_txns
+    FROM fact.fact_transactions
+    WHERE status = 'SUCCESS'
+    GROUP BY provider, DATE(txn_date)
+),
+provider_daily_duplicates AS (
+    SELECT
+        provider,
+        txn_day,
+        COUNT(DISTINCT txn_id) AS duplicate_txns
+    FROM suspicious_duplicates
+    GROUP BY provider, txn_day
+)
+SELECT
+    ps.provider,
+    ps.txn_day,
+    ps.total_success_txns,
+    COALESCE(pd.duplicate_txns, 0) AS duplicate_txns,
+    ROUND(
+        COALESCE(pd.duplicate_txns, 0)::numeric * 100.0 
+        / NULLIF(ps.total_success_txns, 0),
+        4
+    ) AS duplicate_share
+FROM provider_daily_success ps
+LEFT JOIN provider_daily_duplicates pd
+    ON ps.provider = pd.provider
+    AND ps.txn_day = pd.txn_day
+ORDER BY ps.provider, ps.txn_day;
+
+-- marts_chargebacks_trend
+DROP TABLE IF EXISTS marts.marts_chargebacks_trend;
+CREATE TABLE marts.marts_chargebacks_trend AS
+WITH txn_success AS (
+    SELECT
+        txn_id,
+        provider
+    FROM fact.fact_transactions
+    WHERE status = 'SUCCESS'
+),
+cb_with_provider AS (
+    SELECT
+        c.cb_id,
+        c.txn_id,
+        c.cb_date,
+        t.provider
+    FROM fact.fact_chargebacks c
+    JOIN txn_success t USING (txn_id)
+)
+SELECT
+    provider,
+    DATE(cb_date) AS cb_day,
+    COUNT(DISTINCT cb_id) AS chargebacks,
+    COUNT(DISTINCT txn_id) AS total_success_txns_for_cb,
+    ROUND(
+        COUNT(DISTINCT cb_id)::numeric * 100.0
+        / NULLIF(COUNT(DISTINCT txn_id), 0),
+        4
+    ) AS chargeback_rate
+FROM cb_with_provider
+GROUP BY provider, DATE(cb_date)
+ORDER BY provider, cb_day;
