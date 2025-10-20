@@ -128,36 +128,3 @@ LEFT JOIN provider_daily_duplicates pd
     ON ps.provider = pd.provider
     AND ps.txn_day = pd.txn_day
 ORDER BY ps.provider, ps.txn_day;
-
--- marts_chargebacks_trend
-DROP TABLE IF EXISTS marts.marts_chargebacks_trend;
-CREATE TABLE marts.marts_chargebacks_trend AS
-WITH txn_success AS (
-    SELECT
-        txn_id,
-        provider
-    FROM fact.fact_transactions
-    WHERE status = 'SUCCESS'
-),
-cb_with_provider AS (
-    SELECT
-        c.cb_id,
-        c.txn_id,
-        c.cb_date,
-        t.provider
-    FROM fact.fact_chargebacks c
-    JOIN txn_success t USING (txn_id)
-)
-SELECT
-    provider,
-    DATE(cb_date) AS cb_day,
-    COUNT(DISTINCT cb_id) AS chargebacks,
-    COUNT(DISTINCT txn_id) AS total_success_txns_for_cb,
-    ROUND(
-        COUNT(DISTINCT cb_id)::numeric * 100.0
-        / NULLIF(COUNT(DISTINCT txn_id), 0),
-        4
-    ) AS chargeback_rate
-FROM cb_with_provider
-GROUP BY provider, DATE(cb_date)
-ORDER BY provider, cb_day;
