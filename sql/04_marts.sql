@@ -34,7 +34,7 @@ merged_suspicious AS (
         ps.total_success_txns,
         COALESCE(psu.duplicate_txns, 0) AS duplicate_txns,
         ROUND(
-            COALESCE(psu.duplicate_txns, 0)::numeric * 100.0 
+            COALESCE(psu.duplicate_txns, 0) * 100.0 
             / NULLIF(ps.total_success_txns, 0),
             4
         ) AS duplicate_share
@@ -47,7 +47,7 @@ provider_chargebacks AS (
         COUNT(DISTINCT c.cb_id) AS chargebacks,
         COUNT(DISTINCT f.txn_id) FILTER (WHERE f.status = 'SUCCESS') AS total_success_txns_for_cb,
         ROUND(
-            COUNT(DISTINCT c.cb_id)::numeric * 100.0
+            COUNT(DISTINCT c.cb_id) * 100.0
             / NULLIF(COUNT(DISTINCT f.txn_id) FILTER (WHERE f.status = 'SUCCESS'), 0),
             4
         ) AS chargeback_rate
@@ -74,7 +74,9 @@ SELECT
     COUNT(DISTINCT f.txn_id) AS total_txns,
     SUM(f.amount) AS total_amount,
     COUNT(DISTINCT c.cb_id) AS total_chargebacks,
-    ROUND(COUNT(DISTINCT c.cb_id)::numeric / NULLIF(COUNT(DISTINCT f.txn_id), 0), 4) AS chargeback_rate
+    ROUND(
+		COUNT(DISTINCT c.cb_id)::numeric 
+		/ NULLIF(COUNT(DISTINCT f.txn_id), 0), 4) AS chargeback_rate
 FROM fact.fact_transactions f
 LEFT JOIN fact.fact_chargebacks c USING (txn_id)
 GROUP BY f.user_id
