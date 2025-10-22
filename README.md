@@ -10,6 +10,42 @@
 
 3) What impact does this have on the chargeback rate (refunds triggered by customer complaints)?
 
+**Clarifying questions:**
+
+1) What exactly do we consider a duplicate: the same amount from the same user within X minutes, or a repeated txn_id?
+
+2) Do we look only at SUCCESS transactions, or at all statuses?
+
+3) Should we take different payment methods (card, Apple/Google Pay) into account?
+
+4) Does the context matter - is it a duplicate within a single session, or any consecutive transactions by the same user?
+
+5) Should we consider currency and time zone when comparing amounts?
+
+6) Do we include REFUNDED transactions in the duplicate statistics, or exclude them?
+
+**Hypotheses:**
+
+1) **Payment provider side:** technical failure at the payment provider (a partner of the bank handling the transactions) - the same payment was processed twice;
+
+2) **Bank side:** retry mechanism error - multiple attempts triggered due to slow response from the bank;
+
+3) **User side:** behavioral factor - user pressed the "Pay" button several times;
+
+4) **Integration issues:** specific integration problems with certain banks (retries on the bank side);
+
+5) **Currency transactions:** duplicates may appear due to currency conversion when transactions are processed in different currencies;
+
+6) **Client SDK side:** API timeout - the client SDK didn’t receive a response in time and resent the request. In our case, this means:
+
+- Client application (e.g., mobile app) used the bank’s or provider’s SDK;
+- The SDK sent a request to the API (e.g., to process a payment);
+- The API took too long to respond (timeout);
+- The SDK assumed the request was lost and sent it again;
+- As a result, the server could process both requests, and the payment was executed twice;
+
+7) **External systems:** third-party platforms (e.g., marketplaces or aggregators) duplicated the payment request
+
 ## Data Mart Schema
 
 The architecture of the data mart includes **four layers**:
