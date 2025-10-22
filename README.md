@@ -1,6 +1,6 @@
 # Duplicate Transactions Analysis
 
-**Business context**: During the week of October 1–7, 2024 some clients have reported cases of double charges - duplicate transactions appearing in their card statements after making payments.
+**Business context**: During the week of October 1-7, 2024 some clients have reported cases of double charges - duplicate transactions appearing in their card statements after making payments.
 
 **Key questions from management**:
 
