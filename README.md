@@ -68,7 +68,7 @@ Contains aggregated summary tables for reporting and visualization.
 
 1) **Trend line** (Weekly Duplicate Transactions) visualizes daily duplicate volumes, showing short-term spikes (notably on October 2), followed by stabilization;
 
-2) **Horizontal иars** (Duplicate Share & Chargeback Rate by Provider). These bar charts compare providers side by side: 1) Duplicate share - EuroPay leads with 1.76%, followed by QuickPay and FinFlow; 2) Chargeback rate - QuickPay (3.45%) and FinFlow (3.28%) show the highest rates;
+2) **Horizontal bars** (Duplicate Share & Chargeback Rate by Provider). These bar charts compare providers side by side: 1) Duplicate share - EuroPay leads with 1.76%, followed by QuickPay and FinFlow; 2) Chargeback rate - QuickPay (3.45%) and FinFlow (3.28%) show the highest rates;
 
 3) **Histogram** (Chargeback Rate Distribution) shows how users cluster around lower chargeback rates (< 0.5%), with a few high-risk outliers;
 
